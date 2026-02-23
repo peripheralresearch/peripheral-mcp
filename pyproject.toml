@@ -21,8 +21,8 @@ build-backend = "hatchling.build"
 packages = ["src"]
 
 [project.scripts]
-peripheral-mcp = "mcp.server:main"
-peripheral-api = "api.main:app"
+peripheral-mcp = "src.mcp.server:main"
+peripheral-api = "src.api.main:app"
 
 [tool.uv]
 dev-dependencies = [

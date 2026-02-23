@@ -1,185 +1,296 @@
 # Peripheral MCP - Deployment Guide
 
-## ✅ Current Status (Feb 23, 2026 - 17:12 AEDT)
+## Current Status
 
-**Repository:** https://github.com/peripheralresearch/peripheral-mcp  
-**Org:** peripheralresearch  
-**API Testing:** ✓ All endpoints working locally
+- ✅ **Prefect Cloud:** Daily briefing flow deployed (runs 9am Sydney time)
+- ⏳ **FastAPI Server:** Running locally, needs public deployment
+- ⏳ **MCP Server:** Local only (by design - MCP uses stdio protocol)
 
-### Test Results
+## Public API Deployment Options
 
+### Option 1: Railway (Recommended)
+
+**Fastest deployment path with free tier.**
+
+1. Install Railway CLI:
+```bash
+npm install -g @railway/cli
 ```
-Health Check: ✓ Connected to Supabase
-Briefing (6h): 50 articles, 14 sources active
-Database: 95K+ articles, 336K+ signals accessible
+
+2. Login and initialize:
+```bash
+railway login
+cd /home/atlas/GM/sentinel/peripheral-mcp
+railway init
 ```
+
+3. Set environment variables in Railway dashboard:
+```
+SUPABASE_URL=https://zghbrwbfdoalgzpcnbcm.supabase.co
+SUPABASE_KEY=<service-key-from-credentials.env>
+```
+
+4. Deploy:
+```bash
+railway up
+```
+
+5. Get public URL:
+```bash
+railway domain
+```
+
+**Result:** API available at `https://your-app.railway.app`
 
 ---
 
-## Quick Deploy Options
+### Option 2: Render
 
-### Option 1: Railway (Recommended - Free Tier)
+1. Create `render.yaml` (already in repo)
 
-```bash
-# Install Railway CLI
-npm i -g @railway/cli
+2. Push to GitHub
 
-# Login
-railway login
+3. Connect repository to Render:
+   - Go to https://render.com
+   - New → Web Service
+   - Connect GitHub repo: `peripheralresearch/peripheral-mcp`
+   - Render auto-detects render.yaml
 
-# Deploy from repo root
-cd /home/atlas/GM/peripheral-mcp
-railway init
-railway up
-
-# Set environment variables in Railway dashboard:
-# SUPABASE_URL=https://zghbrwbfdoalgzpcnbcm.supabase.co
-# SUPABASE_KEY=eyJhbGci... (from .env)
+4. Add environment variables in Render dashboard:
+```
+SUPABASE_URL=https://zghbrwbfdoalgzpcnbcm.supabase.co
+SUPABASE_KEY=<service-key>
 ```
 
-**URL will be:** `https://peripheral-mcp.railway.app` (or similar)
+5. Deploy
 
-### Option 2: Render (Auto-deploy from GitHub)
+**Result:** API available at `https://peripheral-mcp.onrender.com`
 
-1. Visit https://render.com
-2. New → Web Service
-3. Connect `peripheralresearch/peripheral-mcp` repo
-4. Build Command: `uv sync`
-5. Start Command: `uv run uvicorn src.api.main:app --host 0.0.0.0 --port $PORT`
-6. Add environment variables (SUPABASE_URL, SUPABASE_KEY)
+---
 
-**Auto-deploys** on every push to master.
+### Option 3: Fly.io
 
-### Option 3: Fly.io (Edge Deployment)
-
+1. Install flyctl:
 ```bash
-# Install flyctl
 curl -L https://fly.io/install.sh | sh
+```
 
-# Login and launch
-cd /home/atlas/GM/peripheral-mcp
+2. Login and launch:
+```bash
+cd /home/atlas/GM/sentinel/peripheral-mcp
 fly launch
-fly secrets set SUPABASE_URL=... SUPABASE_KEY=...
+```
+
+3. Set secrets:
+```bash
+source /home/atlas/GM/.auth/credentials.env
+fly secrets set SUPABASE_URL=$SUPABASE_URL SUPABASE_KEY=$SUPABASE_SERVICE_KEY
+```
+
+4. Deploy:
+```bash
 fly deploy
 ```
 
----
-
-## Prefect Cloud Setup
-
-**Account:** daniel@theperipheral.org
-
-### Manual Setup (if CLI fails)
-
-1. Visit https://app.prefect.cloud
-2. Sign up with daniel@theperipheral.org
-3. Create new workspace
-4. Connect GitHub: peripheralresearch/peripheral-mcp
-5. Deploy flow:
-   ```bash
-   cd /home/atlas/GM/peripheral-mcp
-   uvx prefect-cloud deploy src/flows/briefing.py:generate_daily_briefing \
-       --from peripheralresearch/peripheral-mcp \
-       --name daily-briefing \
-       --secret SUPABASE_URL="$SUPABASE_URL" \
-       --secret SUPABASE_KEY="$SUPABASE_KEY"
-   ```
-
-6. Schedule: Daily at 9am Sydney time (`0 23 * * *` UTC)
+**Result:** API available at `https://peripheral-mcp.fly.dev`
 
 ---
 
-## MCP Integration (For Your Friends)
+### Option 4: Docker (Self-Hosted)
 
-Once API is deployed (e.g., https://peripheral-mcp.railway.app):
+1. Build image:
+```bash
+docker build -t peripheral-api .
+```
 
-### Claude Desktop Config
+2. Run container:
+```bash
+docker run -d \
+  -p 8080:8080 \
+  -e SUPABASE_URL=https://zghbrwbfdoalgzpcnbcm.supabase.co \
+  -e SUPABASE_KEY=<service-key> \
+  --name peripheral-api \
+  peripheral-api
+```
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+3. Expose publicly (nginx reverse proxy, Cloudflare Tunnel, etc.)
+
+---
+
+## After Deployment
+
+### Update MCP Configuration
+
+Once API is public, update `~/.config/mcp/peripheral-mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "peripheral": {
-      "command": "uvx",
+      "command": "uv",
       "args": [
-        "--from",
-        "git+https://github.com/peripheralresearch/peripheral-mcp",
+        "--directory",
+        "/home/atlas/GM/sentinel/peripheral-mcp",
+        "run",
         "peripheral-mcp"
       ],
       "env": {
-        "PERIPHERAL_API_URL": "https://peripheral-mcp.railway.app"
+        "PERIPHERAL_API_URL": "https://your-deployed-api.railway.app",
+        "SUPABASE_URL": "https://zghbrwbfdoalgzpcnbcm.supabase.co",
+        "SUPABASE_KEY": "${SUPABASE_SERVICE_KEY}"
       }
     }
   }
 }
 ```
 
-### Test Prompts
+### Test Public API
 
-Once configured, users can ask Claude:
+```bash
+# Health check
+curl https://your-deployed-api.railway.app/health
 
-- "What's happening in Ukraine today?" (uses `get_latest_briefing`)
-- "Show me Kyiv military signals in the last 12 hours" (uses `get_military_signals`)
-- "Get the top 5 trending stories" (uses `get_trending_stories`)
-- "Is The Peripheral API healthy?" (uses `health_check`)
+# Latest briefing
+curl https://your-deployed-api.railway.app/briefing/latest?hours=24
 
----
+# Signals
+curl https://your-deployed-api.railway.app/signals/region/Ukraine
 
-## Monitoring
+# Trending stories
+curl https://your-deployed-api.railway.app/stories/trending?hours=24&limit=10
+```
 
-### API Endpoints (Public)
+### Share MCP Access
 
-- `GET https://peripheral-mcp.railway.app/health`
-- `GET https://peripheral-mcp.railway.app/briefing/latest?hours=24`
-- `GET https://peripheral-mcp.railway.app/signals/region/Kyiv?hours=12`
-- `GET https://peripheral-mcp.railway.app/stories/trending?limit=10`
+Users can now use The Peripheral MCP by:
 
-### Prefect Dashboard
+1. Installing MCP client (Claude Desktop, etc.)
 
-- https://app.prefect.cloud
-- View flow runs, logs, and schedules
-- Monitor daily briefing generation
+2. Adding server configuration:
+```json
+{
+  "mcpServers": {
+    "peripheral": {
+      "command": "npx",
+      "args": ["-y", "peripheral-mcp-client"],
+      "env": {
+        "PERIPHERAL_API_URL": "https://your-deployed-api.railway.app"
+      }
+    }
+  }
+}
+```
 
----
-
-## Current Configuration
-
-**Database:** Supabase (zghbrwbfdoalgzpcnbcm.supabase.co)  
-**Tables:** news_item (95K+), signal (336K+), story (74K+)  
-**Authentication:** Service role key (full read access)  
-**Rate Limiting:** None (currently public, add later if needed)  
-**Caching:** None (can add Cloudflare Workers layer)
-
----
-
-## Security Notes
-
-- API is read-only (no POST/PUT/DELETE endpoints)
-- Content truncated to 500 chars per article
-- Internal fields hidden (no raw IDs exposed)
-- Service role key stored as secret in Prefect/Railway
-- Consider adding rate limiting if traffic spikes
+3. MCP tools become available in their client
 
 ---
 
-## Next Actions
+## Architecture After Deployment
 
-**For Dan:**
-1. Choose deployment platform (Railway recommended)
-2. Deploy API server (10 min)
-3. Note the public URL
-4. Update MCP config with API URL
-5. Share config with friends
-
-**For Atlas:**
-1. Fix FastMCP dependency issue (add `mcp` package)
-2. Test MCP tools with deployed API
-3. Create example queries documentation
-4. Set up monitoring/alerts
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                          Users                                  │
+│         (Claude Desktop, MCP Clients Worldwide)                 │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │
+                       │ MCP Protocol (stdio)
+                       │
+          ┌────────────▼────────────┐
+          │   MCP Server (local)    │
+          │   - get_latest_briefing │
+          │   - get_military_signals│
+          │   - get_trending_stories│
+          │   - health_check        │
+          └────────────┬────────────┘
+                       │
+                       │ HTTP/S
+                       │
+┌──────────────────────▼──────────────────────────────────────────┐
+│           FastAPI Server (PUBLIC - Railway/Render)              │
+│                https://peripheral-api.railway.app               │
+│                                                                 │
+│  Endpoints:                                                     │
+│  - GET /health                                                  │
+│  - GET /briefing/latest?hours=24&region=ukraine                │
+│  - GET /signals/region/{region}?hours=24                       │
+│  - GET /stories/trending?hours=24&limit=10                     │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │
+                       │ PostgreSQL REST API
+                       │
+┌──────────────────────▼──────────────────────────────────────────┐
+│                  Supabase (Cloud Database)                      │
+│           https://zghbrwbfdoalgzpcnbcm.supabase.co             │
+│                                                                 │
+│  Data:                                                          │
+│  - 80,856 stories                                               │
+│  - 116,302 news items                                           │
+│  - 338,119 signals                                              │
+│  - 32,508 persons                                               │
+│  - 23,021 locations                                             │
+│  - 26,974 organisations                                         │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-**Last Updated:** 2026-02-23 17:12 AEDT  
-**Status:** Ready for deployment  
-**Repository:** https://github.com/peripheralresearch/peripheral-mcp
+## Cost Estimate
+
+### Railway Free Tier
+- $0/month
+- 500 hours/month execution time
+- Sleeps after 30 min inactivity
+- Wakes on request (~1-2 seconds)
+
+### Render Free Tier
+- $0/month
+- Always-on for web services
+- 750 hours/month
+- Slower cold starts
+
+### Fly.io Free Tier
+- $0/month (with credit card)
+- 3 shared-cpu VMs
+- Always-on
+- Global edge deployment
+
+### Recommended: Start with Railway
+- Free
+- Fast deployment
+- Easy to upgrade later
+- Auto HTTPS
+- Good performance
+
+---
+
+## Security Considerations
+
+### Current Setup (Safe)
+- API is read-only (no mutations)
+- Supabase Row-Level Security enabled
+- Service key only for backend (not exposed to clients)
+- CORS enabled for public access
+- No authentication required (public data)
+
+### Future Enhancements (Optional)
+- Rate limiting per IP
+- API key authentication for heavy users
+- Webhook notifications for new data
+- GraphQL endpoint for complex queries
+
+---
+
+## Next Steps
+
+1. Choose deployment platform (recommend Railway)
+2. Deploy FastAPI server
+3. Update MCP configuration with public URL
+4. Test public API endpoints
+5. Share MCP access with users
+6. Monitor usage and costs
+
+---
+
+**Status:** Ready to deploy  
+**Estimated time:** 10-15 minutes (Railway)  
+**Cost:** $0 (free tier)
