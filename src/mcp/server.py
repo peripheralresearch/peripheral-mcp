@@ -107,6 +107,11 @@ async def health_check() -> dict:
         return response.json()
 
 
+def main():
+    """Entry point for uvx/mcp client"""
+    mcp.run()
+
+
 # Entry point for uvx
 if __name__ == "__main__":
-    mcp.run()
+    main()
