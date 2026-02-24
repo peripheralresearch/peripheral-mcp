@@ -15,23 +15,15 @@ This MCP server makes that data accessible to AI assistants like Claude Desktop 
 
 ```
 MCP Clients (Claude Desktop, etc.)
-    ↓
-FastMCP Server (4 tools)
-    ↓
+    |
+FastMCP Server (10 tools)
+    |
 FastAPI (controlled endpoints)
-    ↓
+    |
 Supabase (Peripheral database)
 ```
 
 **Security-first:** Layered architecture provides curated views, not raw database access.
-
-## Features
-
-- 📰 **Latest intelligence briefings** (24h, 7d, regional)
-- 🎯 **Military signals by region** (Ukraine, Middle East, etc.)
-- 📊 **Trending stories** (ranked by cluster size)
-- 🔍 **Semantic search** (coming soon)
-- 📡 **Real-time alerts** (air defense, threats)
 
 ## For Users
 
@@ -58,8 +50,43 @@ Once configured, you can ask Claude:
 - *"Show me the latest Peripheral intelligence briefing"*
 - *"Get military signals for Kharkiv region in the last 12 hours"*
 - *"What are the top 5 trending stories?"*
+- *"Search for stories about drone strikes"*
+- *"Who is Zelensky mentioned with in recent articles?"*
+- *"Show me the signal timeline for Kyiv this week"*
+- *"Find articles about ceasefire negotiations"*
 
 Claude will use the MCP tools to fetch live data from The Peripheral.
+
+## MCP Tools (10 Total)
+
+| Tool | Description |
+|------|-------------|
+| `health_check()` | Check API and database health |
+| `get_latest_briefing(hours, region)` | Get intelligence briefing |
+| `get_military_signals(region, hours, signal_type)` | Get military signals by region |
+| `get_trending_stories(hours, limit)` | Get top stories by article count |
+| `search_stories(query, hours, limit)` | Search stories by keyword/topic |
+| `get_story_details(story_id)` | Get full story with articles and entities |
+| `search_entities(name, entity_type, limit)` | Search people, orgs, locations, countries |
+| `get_entity_context(entity_id, entity_type, hours)` | Get articles/stories mentioning an entity |
+| `search_articles(query, hours, limit)` | Search individual news articles |
+| `get_signal_timeline(region, hours)` | Get hourly signal timeline for escalation tracking |
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | API info and endpoint list |
+| GET | `/health` | Health check + DB connectivity |
+| GET | `/briefing/latest` | Intelligence briefing |
+| GET | `/signals/region/{region}` | Military signals by region |
+| GET | `/signals/timeline/{region}` | Hourly signal timeline |
+| GET | `/stories/trending` | Trending stories |
+| GET | `/stories/search?q={query}` | Search stories |
+| GET | `/stories/{story_id}` | Full story details with entities |
+| GET | `/articles/search?q={query}` | Search articles |
+| GET | `/entities/search?name={name}` | Search entities |
+| GET | `/entities/{type}/{id}/context` | Entity context (articles/stories) |
 
 ## For Developers
 
@@ -78,39 +105,27 @@ cp .env.example .env
 # Edit .env with your Supabase credentials
 
 # Run the API server
-uv run uvicorn src.api.main:app --reload
+uv run uvicorn src.api.main:app --reload --port 8000
 
 # Test endpoints
 curl http://localhost:8000/health
 curl http://localhost:8000/briefing/latest?hours=24
+curl "http://localhost:8000/stories/search?q=ukraine&hours=48"
+curl "http://localhost:8000/entities/search?name=putin&type=person"
+curl http://localhost:8000/signals/timeline/KYIV?hours=24
 ```
 
-### API Endpoints
-
-- `GET /` - API info and endpoint list
-- `GET /health` - Health check + DB connectivity
-- `GET /briefing/latest` - Intelligence briefing (24h default)
-- `GET /signals/region/{region}` - Military signals by region
-- `GET /stories/trending` - Trending stories by cluster size
-
-### MCP Tools
-
-The FastMCP server exposes 4 tools:
-
-1. **get_latest_briefing(hours, region)** - Fetch intelligence briefing
-2. **get_military_signals(region, hours, signal_type)** - Get regional military activity
-3. **get_trending_stories(hours, limit)** - Get top stories
-4. **health_check()** - Verify system health
-
-## Deployment
-
-### Prefect Cloud (Automated Workflows)
+### Testing the MCP Server
 
 ```bash
-./deploy.sh
+# Run the MCP server locally
+uv run peripheral-mcp
+
+# Or directly
+uv run python -m src.mcp.server
 ```
 
-This deploys daily briefing generation to Prefect Cloud with automatic scheduling.
+## Deployment
 
 ### API Server (Railway/Render)
 
@@ -121,15 +136,23 @@ Deploy the FastAPI server to your preferred platform:
 railway up
 
 # Or Render (connect GitHub repo)
-# Auto-deploys from master branch
+# Auto-deploys from main branch
 ```
+
+### Prefect Cloud (Automated Workflows)
+
+```bash
+./deploy.sh
+```
+
+Deploys daily briefing generation to Prefect Cloud with automatic scheduling.
 
 ## Tech Stack
 
 - **FastAPI** - REST API framework
 - **FastMCP** - Model Context Protocol implementation
 - **Prefect** - Workflow orchestration
-- **Supabase** - PostgreSQL database + real-time subscriptions
+- **Supabase** - PostgreSQL database
 - **uv** - Python package manager
 
 ## Contributing
@@ -150,7 +173,3 @@ MIT License - see [LICENSE](LICENSE) for details.
 Visit [theperipheral.org](https://theperipheral.org) to learn more about our OSINT platform and intelligence methodology.
 
 For questions or feedback: [Contact Us](https://theperipheral.org/contact)
-
----
-
-**Built with ❤️ for the OSINT community**
