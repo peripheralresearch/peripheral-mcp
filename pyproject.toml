@@ -22,6 +22,7 @@ packages = ["src"]
 
 [project.scripts]
 peripheral-mcp = "src.mcp.server:main"
+peripheral-mcp-cloud = "src.mcp.cloud_server:main"
 peripheral-mcp-horizon = "src.mcp.horizon_server:main"
 peripheral-api = "src.api.main:app"
 

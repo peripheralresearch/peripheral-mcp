@@ -17,5 +17,5 @@ RUN uv pip install --system -r requirements.txt
 # Expose port
 EXPOSE 8080
 
-# Run FastAPI server
-CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Run cloud MCP server
+CMD ["uvicorn", "src.mcp.cloud_server:app", "--host", "0.0.0.0", "--port", "8080"]

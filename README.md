@@ -13,21 +13,45 @@ This MCP server makes that data accessible to AI assistants like Claude Desktop 
 
 ## Architecture
 
+Two server modes are available:
+
+**Cloud (recommended for remote access):** Single service, direct Supabase queries, token auth.
 ```
-MCP Clients (Claude Desktop, etc.)
-    |
-FastMCP Server (10 tools)
-    |
-FastAPI (controlled endpoints)
-    |
-Supabase (Peripheral database)
+AI Agents (Claude Code, OpenClaw, custom)
+    |  Streamable HTTP + Bearer Token
+    v
+Cloud Server (FastMCP HTTP transport)
+    /mcp    — MCP protocol (10 tools)
+    /health — monitoring
+    |  PostgREST
+    v
+Supabase (118K articles, 80K stories, 338K signals)
 ```
 
-**Security-first:** Layered architecture provides curated views, not raw database access.
+**Local (stdio):** For Claude Desktop via `uvx`, proxies through FastAPI.
+```
+Claude Desktop -> FastMCP (stdio) -> FastAPI -> Supabase
+```
 
-## For Users
+## Connect to Cloud Server
 
-### Install in Claude Desktop
+For streamable-http capable clients (Claude Code, etc.), add to your MCP config:
+
+```json
+{
+  "mcpServers": {
+    "peripheral": {
+      "type": "streamable-http",
+      "url": "https://<railway-url>/mcp",
+      "headers": { "Authorization": "Bearer <your-token>" }
+    }
+  }
+}
+```
+
+Ask your admin for a bearer token, or if auth is disabled, omit the `headers` field.
+
+### Install via Claude Desktop (stdio)
 
 Add to your Claude Desktop MCP settings (`~/Library/Application Support/Claude/claude_desktop_config.json` on Mac):
 
@@ -127,25 +151,45 @@ uv run python -m src.mcp.server
 
 ## Deployment
 
-### API Server (Railway/Render)
+### Cloud MCP Server (Railway)
 
-Deploy the FastAPI server to your preferred platform:
+Deploy the cloud server which exposes MCP over HTTP:
 
 ```bash
-# Railway
+# Set env vars on Railway
+railway variables set SUPABASE_URL=... SUPABASE_KEY=... MCP_AUTH_TOKENS=...
+
+# Deploy
 railway up
-
-# Or Render (connect GitHub repo)
-# Auto-deploys from main branch
 ```
 
-### Prefect Cloud (Automated Workflows)
+Generate tokens for friends:
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Set `MCP_AUTH_TOKENS` to a comma-separated list of tokens. Empty = open access (no auth).
+
+### Local Cloud Server Testing
 
 ```bash
-./deploy.sh
+export SUPABASE_URL=... SUPABASE_KEY=... MCP_AUTH_TOKENS=""
+uv run uvicorn src.mcp.cloud_server:app --port 8000
+
+# Health check
+curl http://localhost:8000/health
+
+# MCP initialize handshake
+curl -X POST http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":1}'
 ```
 
-Deploys daily briefing generation to Prefect Cloud with automatic scheduling.
+### Legacy FastAPI Server
+
+```bash
+uv run uvicorn src.api.main:app --reload --port 8000
+```
 
 ## Tech Stack
 
